@@ -217,7 +217,7 @@ table{border-collapse:collapse;margin:8px auto;font-size:14px}td,th{padding:4px 
 <div class="row" style="justify-content:center"><button id="specBtn">Spectate</button><button class="big" id="againBtn">Play Again</button><button id="menuBtn">Back to Lobby</button></div>
 </div></div>
 
-<script>
+<script><script>
 // Bed Wars standalone backend (Supabase) — used when the page runs outside Claude
 (()=>{if(window.claude)return;window.BW_STANDALONE=true;
 const SB_URL='https://lakjmdyzuqrwcncxybcw.supabase.co',SB_KEY='sb_publishable__m0zTZ3-ThJVk0pktI65Ag_yDFPPD5s';
@@ -258,7 +258,7 @@ let lobbyRoom=null;
 window.claude={use:async n=>n==='room'?(lobbyRoom||(lobbyRoom=mkRoom('lobby'))):n==='db'?db:n==='user'?user:n==='assets'?assets:null};
 })();
 </script>
-
+</script>
 <script>
 "use strict";
 const cv=document.getElementById('c'),cx=cv.getContext('2d');
@@ -364,22 +364,23 @@ function mkPlayer(team,isBot,name,role){const t=teams[team];
   atkCd:0,placeCd:0,fireCd:0,face:0,swingT:0,hurtT:0,slowT:0,blindT:0,breakI:-1,breakP:0,lastHitBy:null,lastHitT:-99,lastDmgT:-99,invuln:1.5,kills:0,finals:0,beds:0,deaths:0,
   ai:isBot?mkAI(role):null,slot:0,sneak:false};}
 
+let MYT=0;
 function newGame(isDemo,pnames){
  pnames=pnames||[];demo=isDemo;setupTeams();buildMap();
- const names=BOTNAMES.slice().sort(()=>Math.random()-.5);let ni=0;players=[];
- for(const t of teams)for(let k=0;k<teamSize;k++){const human=!isDemo&&t.i===0&&k===0;
-  const role=teamSize>=2&&k===1?'def':'att';const pn=t.i===0&&!isDemo&&k>=1?pnames[k-1]:null;const p=mkPlayer(t.i,!human,human?(ACC.name||'You'):(pn||names[ni++%names.length]),role);if(pn)p.party=true;if(human)p.av=cleanAv(ACC.av)||defAv();
+ const names=BOTNAMES.slice().sort(()=>Math.random()-.5);let ni=0;players=[];MYT=(isDemo||NET.mode)?0:Math.floor(Math.random()*teams.length);
+ for(const t of teams)for(let k=0;k<teamSize;k++){const human=!isDemo&&t.i===MYT&&k===0;
+  const role=teamSize>=2&&k===1?'def':'att';const pn=t.i===MYT&&!isDemo&&k>=1?pnames[k-1]:null;const p=mkPlayer(t.i,!human,human?(ACC.name||'You'):(pn||names[ni++%names.length]),role);if(pn)p.party=true;if(human)p.av=cleanAv(ACC.av)||defAv();
   p.x+=t.sx*(k-(teamSize-1)/2)*.3;p.y+=t.sy*(k-(teamSize-1)/2)*.3;players.push(p);}
  robots=[];statues=[];souls=[];spiders=[];webs=[];crops=[];OWLS=[];HIST=[];KC=null;try{kcEl.classList.add('hidden');}catch(e){}const FU=FUSION&&!demo,pickK=ex=>{let id;do{id=KITS[1+Math.floor(Math.random()*(KITS.length-1))].id;}while(id===ex);return id;};
  for(const q of players){q.kit=q.isBot?(!FU&&Math.random()<.35?'none':pickK()):(kitUnlocked(KITMAP[ACC.kit])?ACC.kit:'none');q.kit2=!FU?null:q.isBot?pickK(q.kit):(ACC.kit2&&ACC.kit2!=='none'&&ACC.kit2!==q.kit&&kitUnlocked(KITMAP[ACC.kit2])?ACC.kit2:null);q.kcd={};q.lifeKills=0;applyKitItems(q,true);const C=ACC.cos||{};if(q.isBot){q.kfx=Math.random()<.25?KFX[Math.random()*KFX.length|0].id:null;q.skin=Math.random()<.2?OUTFITS[Math.random()*OUTFITS.length|0].id:null;}else{q.kfx=C.kfx||null;q.skin=C.skin||null;}}
  for(const t of teams){const r1=Math.random(),r2=Math.random();t.bedSkin=me&&t.i===me.team&&!NET.mode?((ACC.cos||{}).bed||null):(r1<.3?BEDS[r2*BEDS.length|0].id:null);}
- me=isDemo?null:players[0];
+ me=isDemo?null:players.find(q=>!q.isBot)||players[0];
  matchRecorded=false;if(!isDemo)xpStart=accXP();coils=[];zaps=[];fireballs=[];arrows=[];eggs=[];tnts=[];parts=[];floats=[];feed=[];gameTime=0;over=false;diaTier=1;emTier=1;evIdx=0;banner=null;specIdx=0;followMe=false;endShown=false;outShown=false;
  shopOpen=false;document.getElementById('shop').classList.add('hidden');
  const c=me||players[0];camX=c.x;camY=c.y;running=true;mmT=0;buildScene();
  if(!isDemo)try{modeStart();}catch(e){console.error(e);}
  if(!isDemo&&MAPS[mapIdx].lore)addFeed('📜 '+MAPS[mapIdx].name+': find the monument in the middle to read its story','#ffd98a');
- if(!isDemo)showBanner('PROTECT YOUR BED',teamSize>1?'Your bot teammates help · press G to have them follow you':'Collect iron, buy wool, and bridge out!',teams[0].color,4);
+ if(!isDemo)showBanner('PROTECT YOUR BED',teamSize>1?'Your bot teammates help · press G to have them follow you':'Collect iron, buy wool, and bridge out!',teams[MYT].color,4);
 }
 
 // ---------- audio ----------
@@ -388,7 +389,7 @@ function snd(f,d=.08,type='square',v=.05,slide=0){if(!AC||demo)return;try{const 
 function sndAt(x,y,...a){if(Math.hypot(x-camX,y-camY)<14)snd(...a);}
 
 // ---------- helpers ----------
-function addFeed(txt,col){feed.unshift({txt,col:col||'#fff',t:7});if(feed.length>6)feed.pop();if(NET.mode==='host'){NETF.push([++NET.fseq,txt,col||'#fff']);if(NETF.length>14)NETF.shift();}}
+function addFeed(txt,col,tm,who){feed.unshift({txt,col:col||'#fff',t:7,tm,who});if(feed.length>3)feed.pop();if(NET.mode==='host'){NETF.push([++NET.fseq,txt,col||'#fff',tm,who]);if(NETF.length>14)NETF.shift();}}
 function showBanner(t,sub,col,dur){banner={t,sub,col:col||'#fff',life:dur||3,max:dur||3};}
 function blocksOf(p){return p.inv.wool+p.inv.wood+p.inv.end;}
 function bestBlock(p){return p.inv.wool>0?'wool':p.inv.wood>0?'wood':p.inv.end>0?'end':null;}
@@ -540,7 +541,7 @@ function breakTick(p,tx,ty,dt){
 function destroyBed(ti,by){
  const t=teams[ti];if(!t.bedAlive)return;t.bedAlive=false;
  t.bed.forEach(i=>{BED[i]=-1;if(NET.mode==='host')NETD.add(i);burst((i%W)+.5,((i/W)|0)+.5,t.color,16);});
- if(by){by.beds++;addFeed(`BED DESTROYED › ${t.name} bed broken by ${by.name}`,t.color);}
+ if(by){by.beds++;addFeed(`BED DESTROYED › ${t.name} bed broken by ${by.name}`,t.color,by.team,[by.name]);}
  if(me&&ti===me.team&&by){showBanner('BED DESTROYED!','You will no longer respawn!','#e8414b',3);snd(120,.6,'sawtooth',.08,-60);}
  else if(by)snd(700,.25,'triangle',.06,-400);
 }
@@ -552,8 +553,8 @@ function kill(p,cause){
  else if(p===me)me.deathBy=k?`${k.name} (${k.inv&&k.sword!=null?SWORD_N[k.sword]+' sword':''}${k.hp!=null?`, ${Math.max(0,k.hp).toFixed(1)} HP left`:''})`:(cause==='void'?'the void':'');
  if(k){k.kills++;k.lifeKills=(k.lifeKills||0)+1;if(k===me&&cause==='arrow')ACC.stats.arrowKills++;if(k===me){const st=k.lifeKills,S={2:'DOUBLE KILL!',3:'TRIPLE KILL!',5:'KILLING SPREE!',8:'UNSTOPPABLE!',12:'LEGENDARY!'}[st];if(S){showBanner(S,`${st} kills without dying`,'#ff8a3a',1.8);snd(660,.1,'square',.05,400);}}else if(k.lifeKills===5)addFeed(`🔥 ${k.name} is on a killing spree!`,'#ff8a3a');if(final)k.finals++;for(const r of ['iron','diamond','emerald'])k.inv[r]+=p.inv[r];
   const verb={void:'was knocked into the void by',boom:'was blown up by',arrow:'was shot by',robot:'was taken down by a robot of',spider:'was bitten to death by the spiderlings of',lava:'was pushed into the lava by',dash:'was sliced by',exec:'was executed by',zap:'was zapped by the Tesla coil of'}[cause]||'was slain by';
-  addFeed(`${p.name} ${verb} ${k.name}${fs}`,teams[k.team].color);if(k===me)snd(final?990:780,.12,'triangle',.06,200);}
- else if(!gk)addFeed(cause==='lava'?`${p.name} melted in the lava${fs}`:`${p.name} fell into the void${fs}`,t.color);
+  addFeed(`${p.name} ${verb} ${k.name}${fs}`,teams[k.team].color,k.team,[k.name,p.name]);if(k===me)snd(final?990:780,.12,'triangle',.06,200);}
+ else if(!gk)addFeed(cause==='lava'?`${p.name} melted in the lava${fs}`:`${p.name} fell into the void${fs}`,t.color,p.team,[p.name]);
  if(p.flag!=null)dropFlag(p);
  if(k)try{kitOnKill(k,p,cause,final);}catch(e){}
  if(k&&k.kfx&&!p.falling)killFx(k.kfx,p.x,p.y,k===me);
@@ -653,7 +654,7 @@ function chooseTarget(b){
  const mate=players.find(q=>q!==b&&q.team===b.team&&q.isBot&&q.ai.tteam>=0&&!teamOut(teams[q.ai.tteam]));
  if(mate&&Math.random()<.8){b.ai.tteam=mate.ai.tteam;return;}
  const opts=teams.filter(t=>t.i!==b.team&&!teamOut(t));if(!opts.length){b.ai.tteam=-1;return;}
- const mt=teams[b.team];let tot=0;const w=opts.map(t=>{let v=1/Math.hypot(t.cx-mt.cx,t.cy-mt.cy);if(!demo&&t.i===0)v*=1.3;if(!t.bedAlive)v*=.7;tot+=v;return v;});
+ const mt=teams[b.team];let tot=0;const w=opts.map(t=>{let v=1/Math.hypot(t.cx-mt.cx,t.cy-mt.cy);if(!demo&&me&&t.i===me.team)v*=1.3;if(!t.bedAlive)v*=.7;tot+=v;return v;});
  let r=Math.random()*tot;for(let k=0;k<opts.length;k++){r-=w[k];if(r<=0){b.ai.tteam=opts[k].i;return;}}b.ai.tteam=opts[0].i;
 }
 function botDecide(b){
@@ -1095,7 +1096,7 @@ function drawHUD(dt){
  if(evIdx<EVENTS.length){cx.font='12px sans-serif';cx.fillStyle='#f2c230';cx.fillText(`${EVENTS[evIdx].n} in ${fmtT(EVENTS[evIdx].t*(MOD.timeMul||1)-gameTime)}`,VW/2,47);}
  mmT-=dt;if(mmT<=0){drawMinimap();mmT=.4;}const mw=Math.min(170,VW*.2),mh=mw*H/W,mx0=VW-mw-10;cx.fillStyle='rgba(10,14,28,.75)';cx.fillRect(mx0-4,6,mw+8,mh+8);cx.drawImage(mm,mx0,10,mw,mh);
  for(const p of players){if(p.dead||p.out)continue;cx.fillStyle=teams[p.team].color;cx.beginPath();cx.arc(mx0+p.x/W*mw,10+p.y/H*mh,p===me?4:2.5,0,7);cx.fill();if(p===me){cx.strokeStyle='#fff';cx.lineWidth=1.5;cx.stroke();}}
- cx.textAlign='right';cx.font='13px sans-serif';feed.forEach((f,k)=>{cx.globalAlpha=Math.min(1,f.t);const y=mh+36+k*20,w=cx.measureText(f.txt).width;cx.fillStyle='rgba(10,14,28,.7)';cx.fillRect(VW-w-22,y-14,w+12,19);cx.fillStyle=f.col;cx.fillText(f.txt,VW-16,y);});cx.globalAlpha=1;
+ cx.textAlign='right';cx.font='13px sans-serif';feed.forEach((f,k)=>{cx.globalAlpha=Math.min(1,f.t);const y=mh+36+k*24,w=cx.measureText(f.txt).width;let c=f.col;if(f.tm!=null&&me){c=(f.who||[]).includes(me.name)?'#4dff7a':f.tm===me.team?'#5aa8ff':'#ff5a5a';}cx.fillStyle='rgba(10,14,28,.78)';cx.fillRect(VW-w-28,y-15,w+18,21);if(f.tm!=null&&teams[f.tm]){cx.fillStyle=teams[f.tm].color;cx.fillRect(VW-w-28,y-15,5,21);}cx.fillStyle=c;cx.fillText(f.txt,VW-16,y);});cx.globalAlpha=1;
  if(banner){cx.globalAlpha=Math.max(0,Math.min(1,banner.life*2,(banner.max-banner.life)*4+.2));cx.textAlign='center';cx.font=`bold ${Math.round(Math.min(56,VW/14))}px sans-serif`;cx.fillStyle='rgba(0,0,0,.6)';cx.fillText(banner.t,VW/2+3,VH*.3+3);cx.fillStyle=banner.col;cx.fillText(banner.t,VW/2,VH*.3);
   if(banner.sub){cx.font='18px sans-serif';cx.fillStyle='#fff';cx.fillText(banner.sub,VW/2,VH*.3+32);}cx.globalAlpha=1;}
  if(!me)return;
@@ -2531,7 +2532,7 @@ function applySnap(S){
  crops=syncList('cr',E.cr||[],a=>({}),(o,a)=>{o.i=a[1];o.x=(a[1]%W)+.5;o.y=((a[1]/W)|0)+.5;o.type=a[2];o.t=a[3];o.team=a[4];});
  if(E.fl){if(FLAGS.length!==E.fl.length)FLAGS=E.fl.map(a=>({team:a[0]}));E.fl.forEach((a,i)=>{const f=FLAGS[i];f.team=a[0];f.x=a[1];f.y=a[2];f.home=!!a[3];f.carrier=a[4]>=0?players[a[4]]:null;});}
  zaps=(E.z||[]).map(a=>({x0:a[0],y0:a[1],x1:a[2],y1:a[3],t:a[4],seed:Math.random()}));
- for(const f of (S.F||[])){if(f[0]>NET.fseen){NET.fseen=f[0];if(NET.fseen>0)feed.unshift({txt:f[1],col:f[2],t:7});if(feed.length>6)feed.pop();}}
+ for(const f of (S.F||[])){if(f[0]>NET.fseen){NET.fseen=f[0];if(NET.fseen>0)feed.unshift({txt:f[1],col:f[2],t:7,tm:f[3],who:f[4]});if(feed.length>3)feed.pop();}}
  if(S.o&&!over){over=true;const w=teams[S.w];if(w)showBanner(`${w.name.toUpperCase()} WINS!`,'',w.color,5);recordMatch(!!(w&&me&&w.i===me.team));if(me&&w&&w.i===me.team)showEnd('VICTORY!','You won the online match!',false);else showEnd('GAME OVER',w?`${w.name} team wins!`:'Draw',false);}}
 var lastSimAt=performance.now();setInterval(()=>{const now=performance.now();if(NET.mode==='host'&&state==='game'&&running&&now-lastSimAt>250){let el=Math.min(2,(now-lastSimAt)/1000);while(el>0){const d=Math.min(.05,el);update(d);el-=d;}netMatchTick(.25);lastSimAt=now;}},100);
 // ---- lobby button bar

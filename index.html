@@ -364,7 +364,7 @@ function mkPlayer(team,isBot,name,role){const t=teams[team];
   atkCd:0,placeCd:0,fireCd:0,face:0,swingT:0,hurtT:0,slowT:0,blindT:0,breakI:-1,breakP:0,lastHitBy:null,lastHitT:-99,lastDmgT:-99,invuln:1.5,kills:0,finals:0,beds:0,deaths:0,
   ai:isBot?mkAI(role):null,slot:0,sneak:false};}
 
-let MYT=0;
+let MYT=0,KITPICK=0,KPWANT=false;
 function newGame(isDemo,pnames){
  pnames=pnames||[];demo=isDemo;setupTeams();buildMap();
  const names=BOTNAMES.slice().sort(()=>Math.random()-.5);let ni=0;players=[];MYT=(isDemo||NET.mode)?0:Math.floor(Math.random()*teams.length);
@@ -372,7 +372,8 @@ function newGame(isDemo,pnames){
   const role=teamSize>=2&&k===1?'def':'att';const pn=t.i===MYT&&!isDemo&&k>=1?pnames[k-1]:null;const p=mkPlayer(t.i,!human,human?(ACC.name||'You'):(pn||names[ni++%names.length]),role);if(pn)p.party=true;if(human)p.av=cleanAv(ACC.av)||defAv();
   p.x+=t.sx*(k-(teamSize-1)/2)*.3;p.y+=t.sy*(k-(teamSize-1)/2)*.3;players.push(p);}
  robots=[];statues=[];souls=[];spiders=[];webs=[];crops=[];OWLS=[];HIST=[];KC=null;try{kcEl.classList.add('hidden');}catch(e){}const FU=FUSION&&!demo,pickK=ex=>{let id;do{id=KITS[1+Math.floor(Math.random()*(KITS.length-1))].id;}while(id===ex);return id;};
- for(const q of players){q.kit=q.isBot?(!FU&&Math.random()<.35?'none':pickK()):(kitUnlocked(KITMAP[ACC.kit])?ACC.kit:'none');q.kit2=!FU?null:q.isBot?pickK(q.kit):(ACC.kit2&&ACC.kit2!=='none'&&ACC.kit2!==q.kit&&kitUnlocked(KITMAP[ACC.kit2])?ACC.kit2:null);q.kcd={};q.lifeKills=0;applyKitItems(q,true);const C=ACC.cos||{};if(q.isBot){q.kfx=Math.random()<.25?KFX[Math.random()*KFX.length|0].id:null;q.skin=Math.random()<.2?OUTFITS[Math.random()*OUTFITS.length|0].id:null;}else{q.kfx=C.kfx||null;q.skin=C.skin||null;}}
+ const kpHold=KPWANT&&!isDemo&&!NET.mode;KITPICK=0;
+ for(const q of players){if(kpHold&&!q.isBot&&!q.remote){q.kit='none';q.kit2=null;q.kcd={};q.lifeKills=0;q.kfx=(ACC.cos||{}).kfx||null;q.skin=(ACC.cos||{}).skin||null;continue;}q.kit=q.isBot?(!FU&&Math.random()<.35?'none':pickK()):(kitUnlocked(KITMAP[ACC.kit])?ACC.kit:'none');q.kit2=!FU?null:q.isBot?pickK(q.kit):(ACC.kit2&&ACC.kit2!=='none'&&ACC.kit2!==q.kit&&kitUnlocked(KITMAP[ACC.kit2])?ACC.kit2:null);q.kcd={};q.lifeKills=0;applyKitItems(q,true);const C=ACC.cos||{};if(q.isBot){q.kfx=Math.random()<.25?KFX[Math.random()*KFX.length|0].id:null;q.skin=Math.random()<.2?OUTFITS[Math.random()*OUTFITS.length|0].id:null;}else{q.kfx=C.kfx||null;q.skin=C.skin||null;}}
  for(const t of teams){const r1=Math.random(),r2=Math.random();t.bedSkin=me&&t.i===me.team&&!NET.mode?((ACC.cos||{}).bed||null):(r1<.3?BEDS[r2*BEDS.length|0].id:null);}
  me=isDemo?null:players.find(q=>!q.isBot)||players[0];
  matchRecorded=false;if(!isDemo)xpStart=accXP();coils=[];zaps=[];fireballs=[];arrows=[];eggs=[];tnts=[];parts=[];floats=[];feed=[];gameTime=0;over=false;diaTier=1;emTier=1;evIdx=0;banner=null;specIdx=0;followMe=false;endShown=false;outShown=false;
@@ -765,7 +766,7 @@ addEventListener('keydown',e=>{if(loadingOn){if(voteOn&&!e.repeat)voteKey(e.key)
   if(NET.mode==='client'){if(k==='b')sendAct('robot');if(k==='m')sendAct('rmode');}else{if(me&&!demo&&k==='b'&&alivePl(me))buildRobot(me);if(me&&!demo&&k==='m'&&hk(me,'industrial'))setRobotMode(me,me.robotMode==='guard'?'collect':'guard');}
   if(me&&!demo&&alivePl(me)){const ix={r:0,x:1,y:2,u:3,i:4}[k];if(ix!=null){const A=abList(me)[ix];if(A){if(NET.mode==='client')sendAct('ab',A[1]);else kitAbility(me,A[1]);}}}
   if(k==='c'&&!demo)saveClip();
-  if(k==='v')cycleCam();if(k==='k')showBanner('KITS','Change your kit in the lobby (K)','#f2c230',1.5);
+  if(k==='v')cycleCam();if(k==='k'){if(KITPICK>0)toggleKits(true);else showBanner('KITS','Change your kit in the lobby (K)','#f2c230',1.5);}
   if(me&&k>='1'&&k<='9')me.slot=+k-1;if(me&&k==='0')me.slot=9;if(k==='f')mouse.rEdge=true;if(k==='z')cycleZoom();
   if(k==='g'&&me&&!demo&&teamSize>1){followMe=!followMe;players.forEach(q=>{if(q.isBot&&q.team===me.team)q.ai.think=0;});showBanner(followMe?'TEAM: FOLLOW ME':'TEAM: PLAY FREE',followMe?'Your teammates will stick with you':'Your teammates act on their own',teams[me.team].color,1.6);}}
  keys[k]=true;keys.shift=e.shiftKey;});
@@ -841,6 +842,7 @@ function genInterval(g){const t=teams[g.team],sz=1+.35*(teamSize-1);
  const dm=MOD.diaMul||MOD.genMul||1;if(g.type==='diamond')return [30,22,15][diaTier-1]/dm;return [55,40,28][emTier-1]/dm;}
 const CAP={iron:96,gold:12,diamond:4,emerald:2};
 function update(dt){
+ if(KITPICK>0){KITPICK-=dt;const e=document.getElementById('kpT');if(e)e.textContent=Math.ceil(Math.max(0,KITPICK));if(KITPICK<=0)endKitPick();return;}
  if(over&&demo){demoRestart-=dt;if(demoRestart<=0){newGame(true);return;}}
  gameTime+=dt;histT-=dt;if(histT<=0&&!demo){histT=.1;HIST.push({p:players.map(q=>[q.x,q.y,q.z||0,q.face||0,alivePl(q)?1:0])});if(HIST.length>60)HIST.shift();}
  if(!over&&evIdx<EVENTS.length&&gameTime>=EVENTS[evIdx].t*(MOD.timeMul||1)){const ev=EVENTS[evIdx++];addFeed(`★ ${ev.n}`,'#f2c230');ev.f();}
@@ -1171,7 +1173,7 @@ function launchMatch(){const q=queue;queue=null;try{startVote(q);}catch(e){conso
 function launchMatch2(q){MODE=q.mode||'classic';TOTAL_PLAYERS=modeTotal(MODE);myPlace=0;lastElo=null;if(diffSaved==null)diffSaved=diff;diff=MODE==='ranked'?((ACC.elo|0)<1200?1:2):diffSaved;window._ldLore=MAPS[q.map]&&MAPS[q.map].lore;const M=MAPS[q.map],E=ENV[M.theme]||ENV.grass,ev=q.ev?curEvent():null;
  ['menu','party','end'].forEach(id=>document.getElementById(id).classList.add('hidden'));toggleAvatar(false);
  showLoading(M.name.toUpperCase(),`${MODE!=='classic'?MODES[MODE].em+' '+MODES[MODE].name.toUpperCase():({1:'SOLOS',2:'DOUBLES',3:'TRIOS',4:'SQUADS'})[q.size]||''} · ${TOTAL_PLAYERS} PLAYERS · ${M.desc}`+(ev?` · ${ev.em} ${ev.name}`:'')+(ACC.fusion?' · 🧬 KIT FUSION':''),E.sky,1900,()=>{
- FUSION=!!ACC.fusion;mapIdx=q.map;teamSize=q.size;state='game';specIdx=0;setMod(ev?ev.id:null);newGame(false,party.map(b=>b.name));});}
+ FUSION=!!ACC.fusion;mapIdx=q.map;teamSize=q.size;state='game';specIdx=0;setMod(ev?ev.id:null);KPWANT=true;newGame(false,party.map(b=>b.name));KPWANT=false;if(me){KITPICK=10;toggleKits(true);}});}
 function nearNPC(){if(!me)return null;for(const [k,n] of Object.entries(lobbyNPC))if(Math.hypot(n.x-me.x,n.y-me.y)<2.3)return k;return null;}
 function openSettings(){const m=document.getElementById('menu'),ig=state==='game';m.classList.toggle('inGame',ig);document.getElementById('closeMenu').textContent=ig?'Resume (Esc)':'Back to lobby (Esc)';
  if(ig){if(shopOpen)toggleShop(false);pauseEl.classList.add('hidden');if(!NET.mode)running=false;mouse.l=mouse.r=false;}m.classList.remove('hidden');unlockPtr();refreshMenu();}
@@ -1853,9 +1855,10 @@ function applyKitItems(p,first){const i=p.inv;if(first&&MOD.teslaStart)i.tesla+=
  case 'builder':i.wool+=first?32:16;break;case 'archer':p.bow=true;i.arrow+=first?8:4;break;case 'medic':i.apple+=1;break;
  case 'demo':i.tnt+=first?2:1;break;case 'electric':if(first)i.tesla+=1;break;case 'industrial':if(first){p.robotMode='collect';spawnRobot(p);if(p.isBot)spawnRobot(p);}break;}}
 const kitsEl=document.getElementById('kits');
-function toggleKits(v){const show=v==null?kitsEl.classList.contains('hidden'):v;kitsEl.classList.toggle('hidden',!show);if(show){unlockPtr();renderKits();}}
+function toggleKits(v){const show=v==null?kitsEl.classList.contains('hidden'):v;kitsEl.classList.toggle('hidden',!show);if(show){unlockPtr();renderKits();}else if(KITPICK>0)endKitPick();}
+function endKitPick(){if(!me){KITPICK=0;return;}KITPICK=0;kitsEl.classList.add('hidden');const k=KITMAP[ACC.kit];me.kit=k&&kitUnlocked(k)?ACC.kit:'none';me.kit2=FUSION&&ACC.kit2&&ACC.kit2!=='none'&&ACC.kit2!==me.kit&&kitUnlocked(KITMAP[ACC.kit2])?ACC.kit2:null;me.kcd={};applyKitItems(me,true);try{dropMesh(me);}catch(e){}const K=KITMAP[me.kit]||KITS[0];showBanner('GO!',`${K.em} ${K.name}${me.kit2?' + '+KITMAP[me.kit2].em+' '+KITMAP[me.kit2].name:''}`,'#3ee07a',1.6);snd(880,.15,'triangle',.07,300);}
 function renderKits(){const s=effStats(),cur=KITMAP[ACC.kit]||KITS[0];
- let h=`<div class="shopTop"><h2>KITS</h2><span class="pill">${cur.em} ${cur.name}</span><div class="pills"><span class="pill">🏆 ${KITS.filter(k=>kitUnlocked(k)).length}/${KITS.length}</span></div><button class="xbtn" data-kclose="1">✕</button></div><div class="kitgrid">`;
+ let h=`<div class="shopTop"><h2>KITS</h2><span class="pill">${cur.em} ${cur.name}</span><div class="pills">${KITPICK>0?`<span class="pill" style="background:#e8414b;font-weight:bold">⏱ <span id="kpT">${Math.ceil(KITPICK)}</span>s to pick</span><button data-kclose="1" style="padding:6px 18px;background:#37c25a;font-weight:bold">READY ▶</button>`:''}<span class="pill">🏆 ${KITS.filter(k=>kitUnlocked(k)).length}/${KITS.length}</span></div><button class="xbtn" data-kclose="1">✕</button></div><div class="kitgrid">`;
  {const fk=freeKits().map(id=>KITMAP[id]).filter(Boolean);h=h.replace('<div class="kitgrid">',`<div style="margin:0 14px 10px;padding:10px 14px;border-radius:12px;background:linear-gradient(90deg,#1d5a3a,#1d4a6e);border:2px solid #3ee07a;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><b style="font-size:18px">🎁 FREE THIS WEEK</b>${fk.map(k=>`<span class="pill">${k.em} ${k.name}</span>`).join('')}<span style="opacity:.8;font-size:13px">Free for everyone until next week — then they rotate.</span></div><div class="kitgrid">`);}
  const k2=KITMAP[ACC.kit2];h=h.replace('<div class="kitgrid">',`<div style="margin:0 14px 10px;padding:10px 14px;border-radius:12px;background:linear-gradient(90deg,#3a1d6e,#1d3a6e);border:2px solid #8a6cff;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><b style="font-size:18px">🧬 KIT FUSION</b><button data-fus="1" style="padding:6px 16px;${ACC.fusion?'background:#37c25a':''}">${ACC.fusion?'ON':'OFF'}</button><span style="opacity:.9;font-size:13px">${ACC.fusion?`Your matches use two kits — everyone gets a second kit. Second kit: <b>${k2&&ACC.kit2!=='none'?k2.em+' '+k2.name:'none — press FUSE on a kit'}</b>`:'Turn on to queue Kit Fusion matches: you and every bot play with two kits at once.'}</span></div><div class="kitgrid">`);
  for(const k of KITS){const un=kitUnlocked(k),eq=ACC.kit===k.id,have=k.req?Math.min(k.req[1],s[k.req[0]]|0):0;

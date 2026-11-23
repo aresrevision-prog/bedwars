@@ -217,7 +217,7 @@ table{border-collapse:collapse;margin:8px auto;font-size:14px}td,th{padding:4px 
 <div class="row" style="justify-content:center"><button id="specBtn">Spectate</button><button class="big" id="againBtn">Play Again</button><button id="menuBtn">Back to Lobby</button></div>
 </div></div>
 
-<script><script>
+<script>
 // Bed Wars standalone backend (Supabase) — used when the page runs outside Claude
 (()=>{if(window.claude)return;window.BW_STANDALONE=true;
 const SB_URL='https://lakjmdyzuqrwcncxybcw.supabase.co',SB_KEY='sb_publishable__m0zTZ3-ThJVk0pktI65Ag_yDFPPD5s';
@@ -229,7 +229,7 @@ function sb(){if(!sbP)sbP=import('https://esm.sh/@supabase/supabase-js@2.45.4').
 function mkRoom(name){const me=uid+'-'+Math.random().toString(36).slice(2,6),others=new Map(),handlers=[];let mine={},ch=null,alive=true,ready=false,pend=false;
  const snap=()=>{const a=[{peer:me,isMe:true,kind:'viewer',presence:mine}];for(const [k,v] of others)a.push({peer:k,isMe:false,kind:'viewer',presence:v.p});return a;};
  const fire=()=>{const p=snap();for(const h of handlers){try{h({peers:p});}catch(e){console.error(e);}}};
- const send=()=>{if(!ch||!ready){pend=true;return;}ch.send({type:'broadcast',event:'p',payload:{peer:me,p:mine}}).catch(()=>{});};
+ let lastS=0,tmr=null;const gap=name==='lobby'?220:90;const send=()=>{if(!ch||!ready){pend=true;return;}const w=lastS+gap-Date.now();if(w>0){if(!tmr)tmr=setTimeout(()=>{tmr=null;send();},w);return;}lastS=Date.now();ch.send({type:'broadcast',event:'p',payload:{peer:me,p:mine}}).catch(()=>{});};
  sb().then(c=>{if(!alive)return;ch=c.channel('bw-'+name.replace(/[^a-zA-Z0-9_\-:.\/]/g,'_'),{config:{broadcast:{self:false,ack:false}}});
   ch.on('broadcast',{event:'p'},({payload:d})=>{if(!d||!d.peer)return;if(d.bye)others.delete(d.peer);else others.set(d.peer,{p:d.p||{},t:Date.now()});fire();});
   ch.subscribe(st=>{if(st==='SUBSCRIBED'){ready=true;send();}});}).catch(()=>{});
@@ -257,7 +257,6 @@ const user={id:async()=>uid,name:async()=>null,can:async()=>true,canEdit:async()
 let lobbyRoom=null;
 window.claude={use:async n=>n==='room'?(lobbyRoom||(lobbyRoom=mkRoom('lobby'))):n==='db'?db:n==='user'?user:n==='assets'?assets:null};
 })();
-</script>
 </script>
 <script>
 "use strict";

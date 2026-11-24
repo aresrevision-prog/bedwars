@@ -364,7 +364,10 @@ function mkPlayer(team,isBot,name,role){const t=teams[team];
   ai:isBot?mkAI(role):null,slot:0,sneak:false};}
 
 let MYT=0,KITPICK=0,KPWANT=false;
-function newGame(isDemo,pnames){
+let firstBlood=false,SLOMO=0,hbT=0,stepD=0,stepLx=0,stepLy=0,combo=0,comboT=-9;
+function stepFx(dt){if(!me||demo||!alivePl(me)||me.falling){stepD=0;return;}const d=Math.hypot(me.x-stepLx,me.y-stepLy);stepLx=me.x;stepLy=me.y;if(d>1.5||Math.abs(me.vz||0)>.05)return;stepD+=d;if(stepD>1.7){stepD=0;snd(85+Math.random()*45,.05,'triangle',.022,-30);}
+ if(me.hp<6){hbT-=dt;if(hbT<=0){hbT=1-(6-me.hp)*.08;snd(58,.11,'sine',.09,-10);setTimeout(()=>snd(52,.09,'sine',.07,-10),140);}}else hbT=0;}
+function newGame(isDemo,pnames){firstBlood=false;combo=0;
  pnames=pnames||[];demo=isDemo;setupTeams();buildMap();
  const names=BOTNAMES.slice().sort(()=>Math.random()-.5);let ni=0;players=[];MYT=(isDemo||NET.mode)?0:Math.floor(Math.random()*teams.length);
  for(const t of teams)for(let k=0;k<teamSize;k++){const human=!isDemo&&t.i===MYT&&k===0;
@@ -484,7 +487,7 @@ function toggleShop(v){if(!me)return;if(v&&(!nearShop(me)||me.dead||me.out))retu
 function hurt(a,v,dmg,ang,kb,cause){if(MODE==='skywars'&&gameTime<30&&!demo)return;if(v===me&&v.invuln<=0&&alivePl(v)){shakeT=.22;shakeA=Math.min(.3,.06+dmg*.03);}if(a===me&&v.invuln<=0&&alivePl(v))hitMark=.15;
  if(v.invuln>0||!alivePl(v)||v.team===a.team)return;
  const tv=teams[v.team];dmg*=(1-ARMOR_RED[v.armor]-tv.upg.prot*.08);
- v.hp-=dmg;if((v.vz||0)<=0&&v.z<.3)v.vz=3.2;v.lastHitBy=a;v.lastHitT=gameTime;v.lastDmgT=gameTime;v.hurtT=.2;v.kx=Math.cos(ang)*kb;v.ky=Math.sin(ang)*kb;
+ v.hp-=dmg;a.dmgDealt=(a.dmgDealt||0)+dmg;if(a===me){combo=gameTime-comboT<1.4?combo+1:1;comboT=gameTime;if(combo>=3&&combo%1===0)snd(500+combo*60,.06,'triangle',.04,120);}if((v.vz||0)<=0&&v.z<.3)v.vz=3.2;v.lastHitBy=a;v.lastHitT=gameTime;v.lastDmgT=gameTime;v.hurtT=.2;v.kx=Math.cos(ang)*kb;v.ky=Math.sin(ang)*kb;
  floats.push({x:v.x+(Math.random()-.5)*.4,y:v.y-.6,txt:dmg.toFixed(1),t:.8,col:a===me?'#ffdf6b':'#ff8080'});
  burst(v.x,v.y,'#c0262e',6);sndAt(v.x,v.y,cause==='arrow'?520:220,.07,'square',.05,-80);
  if(v.isBot&&v.ai.mode!=='fight'){v.ai.mode='fight';v.ai.target=a;}
@@ -551,6 +554,7 @@ function kill(p,cause){
  const fs=final?' — FINAL KILL!':'';p.deaths++;
  let gk=false;if(k&&k.guardian){gk=true;addFeed(`${p.name} was ${cause==='void'?'thrown into the void':'smashed'} by the ${k.name}${fs}`,gCol(k));if(p===me)me.deathBy=`the ${k.name}`;k=null;p.lastHitBy=null;}
  else if(p===me)me.deathBy=k?`${k.name} (${k.inv&&k.sword!=null?SWORD_N[k.sword]+' sword':''}${k.hp!=null?`, ${Math.max(0,k.hp).toFixed(1)} HP left`:''})`:(cause==='void'?'the void':'');
+ if(k&&!firstBlood&&!demo){firstBlood=true;addFeed(`🩸 FIRST BLOOD — ${k.name}`,'#ff4a4a',k.team,[k.name]);if(k===me){showBanner('🩸 FIRST BLOOD!','You drew first blood','#ff4a4a',1.8);snd(440,.2,'sawtooth',.06,300);}}
  if(k){k.kills++;k.lifeKills=(k.lifeKills||0)+1;if(k===me&&cause==='arrow')ACC.stats.arrowKills++;if(k===me){const st=k.lifeKills,S={2:'DOUBLE KILL!',3:'TRIPLE KILL!',5:'KILLING SPREE!',8:'UNSTOPPABLE!',12:'LEGENDARY!'}[st];if(S){showBanner(S,`${st} kills without dying`,'#ff8a3a',1.8);snd(660,.1,'square',.05,400);}}else if(k.lifeKills===5)addFeed(`🔥 ${k.name} is on a killing spree!`,'#ff8a3a');if(final)k.finals++;for(const r of ['iron','diamond','emerald'])k.inv[r]+=p.inv[r];
   const verb={void:'was knocked into the void by',boom:'was blown up by',arrow:'was shot by',robot:'was taken down by a robot of',spider:'was bitten to death by the spiderlings of',lava:'was pushed into the lava by',dash:'was sliced by',exec:'was executed by',zap:'was zapped by the Tesla coil of'}[cause]||'was slain by';
   addFeed(`${p.name} ${verb} ${k.name}${fs}`,teams[k.team].color,k.team,[k.name,p.name]);if(k===me)snd(final?990:780,.12,'triangle',.06,200);}
@@ -606,16 +610,22 @@ function gameOver(w){
  over=true;NET.winner=w?w.i:-1;
  if(w)showBanner(`${w.name.toUpperCase()} WINS!`,'',w.color,5);
  if(demo){demoRestart=6;return;}
- recordMatch(!!(me&&w&&w.i===me.team));clearSave();
- if(me&&w&&w.i===me.team){showEnd('VICTORY!',teamSize>1?'Your team is the last one standing!':'You are the last one standing!',false);snd(523,.15,'triangle',.07);setTimeout(()=>snd(659,.15,'triangle',.07),150);setTimeout(()=>snd(784,.3,'triangle',.07),300);}
- else showEnd('GAME OVER',w?`${w.name} team wins!`:'Draw',false);
+ recordMatch(!!(me&&w&&w.i===me.team));clearSave();if(!NET.mode){SLOMO=1.6;shakeT=.3;shakeA=.12;}const _se=showEnd;const showEnd2=(a,b,c)=>setTimeout(()=>_se(a,b,c),NET.mode?0:1500);
+ if(me&&w&&w.i===me.team){showEnd2('VICTORY!',teamSize>1?'Your team is the last one standing!':'You are the last one standing!',false);snd(523,.15,'triangle',.07);setTimeout(()=>snd(659,.15,'triangle',.07),150);setTimeout(()=>snd(784,.3,'triangle',.07),300);}
+ else showEnd2('GAME OVER',w?`${w.name} team wins!`:'Draw',false);
 }
 function showEnd(title,sub,canSpec){
  const e=document.getElementById('end');document.getElementById('endTitle').textContent=title;document.getElementById('endSub').textContent=sub;
  let h='<table><tr><th>Player</th><th>Team</th><th>Kills</th><th>Finals</th><th>Beds</th><th>Deaths</th></tr>';
  const sorted=players.slice().sort((a,b)=>(b.finals*3+b.kills+b.beds*2)-(a.finals*3+a.kills+a.beds*2));
  for(const q of sorted.slice(0,12))h+=`<tr class="${me&&q.team===me.team?'mine':''}"><td>${q.name}</td><td style="color:${teams[q.team].color}">${teams[q.team].name}</td><td>${q.kills}</td><td>${q.finals}</td><td>${q.beds}</td><td>${q.deaths}</td></tr>`;
- document.getElementById('endStats').innerHTML=(matchRecorded&&me?`<div style="font-size:20px;font-weight:900;color:#ffd84a;margin-bottom:6px">+${accXP()-xpStart} XP · Level ${accLevel()}${lastCoins?` · +${lastCoins} 🪙`:''}</div>`:'')+(lastElo?`<div style="font-size:18px;font-weight:900;margin-bottom:8px;color:${rankOf(lastElo.to).col}">🏆 ${lastElo.d>=0?'+':''}${lastElo.d} Elo · ${rankName(lastElo.to)} (${lastElo.to})</div>`:'')+h+'</table>';
+ const sc=q=>q.finals*3+q.kills+q.beds*2,mvp=sorted[0]&&sc(sorted[0])>0?sorted[0]:null,best=f=>{let b=null;for(const q of players)if(f(q)>0&&(!b||f(q)>f(b)))b=q;return b;};
+ const aw=[['⚔️ Most kills',best(q=>q.kills),q=>q.kills],['🛏️ Bed breaker',best(q=>q.beds),q=>q.beds],['💀 Most finals',best(q=>q.finals),q=>q.finals],['🛡️ Survivor',players.filter(q=>!q.out).sort((a,b)=>a.deaths-b.deaths)[0],q=>q.deaths+' deaths']].filter(a=>a[1]);
+ const tag=q=>`<b style="color:${teams[q.team].color}">${escH(q.name)}${q===me?' (you)':''}</b>`;
+ const mvpH=mvp?`<div style="margin:6px auto 10px;padding:10px 16px;border-radius:14px;background:linear-gradient(90deg,#4a3a0a,#2a2a4a);border:2px solid #ffd84a;display:inline-block;font-size:18px">⭐ <b style="color:#ffd84a">MVP</b> · ${tag(mvp)} — ${mvp.kills} kills · ${mvp.finals} finals · ${mvp.beds} beds</div>`:'';
+ const awH=aw.length?`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:8px">${aw.map(a=>`<div style="background:#1b2342;border-radius:10px;padding:6px 10px;font-size:13px">${a[0]}<br>${tag(a[1])} <span style="opacity:.8">${typeof a[2](a[1])==='number'?a[2](a[1]):a[2](a[1])}</span></div>`).join('')}</div>`:'';
+ const youH=me?`<div style="font-size:14px;opacity:.9;margin-bottom:8px">You: <b>${me.kills}</b> kills · <b>${me.finals}</b> finals · <b>${me.beds}</b> beds · <b>${me.deaths}</b> deaths${me.dmgDealt?` · <b>${Math.round(me.dmgDealt)}</b> damage`:''}</div>`:'';
+ document.getElementById('endStats').innerHTML=mvpH+awH+youH+(matchRecorded&&me?`<div style="font-size:20px;font-weight:900;color:#ffd84a;margin-bottom:6px">+${accXP()-xpStart} XP · Level ${accLevel()}${lastCoins?` · +${lastCoins} 🪙`:''}</div>`:'')+(lastElo?`<div style="font-size:18px;font-weight:900;margin-bottom:8px;color:${rankOf(lastElo.to).col}">🏆 ${lastElo.d>=0?'+':''}${lastElo.d} Elo · ${rankName(lastElo.to)} (${lastElo.to})</div>`:'')+h+'</table>';
  document.getElementById('specBtn').classList.toggle('hidden',!canSpec);e.classList.remove('hidden');
 }
 
@@ -875,7 +885,7 @@ function update(dt){
   if(gone)arrows.splice(k,1);}
  for(let k=eggs.length-1;k>=0;k--){const e=eggs[k];e.t+=dt;e.x+=e.vx*dt;e.y+=e.vy*dt;const i=tileAt(e.x,e.y);
   if(i<0||WL[i]||e.t>1.15){eggs.splice(k,1);continue;}if(FL[i]===0&&BED[i]<0){setFloor(i,2,1,e.owner.team);if(Math.random()<.5)burst(e.x,e.y,teams[e.owner.team].light,2);}}
- updRobots(dt);updGuardians(dt);updKits(dt);updOwls(dt);if(MODE!=='classic'&&MODE!=='ranked'&&!demo)updMode(dt);if(shakeT>0)shakeT-=dt;if(hitMark>0)hitMark-=dt;
+ updRobots(dt);updGuardians(dt);updKits(dt);updOwls(dt);stepFx(dt);if(MODE!=='classic'&&MODE!=='ranked'&&!demo)updMode(dt);if(shakeT>0)shakeT-=dt;if(hitMark>0)hitMark-=dt;
  for(const c of coils){c.cd-=dt;if(c.cd>0)continue;let tg=null,bd=5.5;for(const q of players){if(q.team===c.team||!alivePl(q)||q.invuln>0)continue;const d=Math.hypot(q.x-c.x,q.y-c.y);if(d<bd){bd=d;tg=q;}}
   if(tg){c.cd=c.owner&&hk(c.owner,'electric')?1.05:1.6;zaps.push({x0:c.x,y0:c.y,x1:tg.x,y1:tg.y,t:.2,seed:Math.random()});hurt(c.owner,tg,3.5,Math.atan2(tg.y-c.y,tg.x-c.x),3,'zap');sndAt(c.x,c.y,1500,.12,'sawtooth',.04,-1200);}else c.cd=.3;}
  for(let k=zaps.length-1;k>=0;k--){zaps[k].t-=dt;if(zaps[k].t<=0)zaps.splice(k,1);}
@@ -1056,6 +1066,7 @@ function render(dt){
  if(showFps){cx.textAlign='right';cx.font='bold 12px monospace';cx.fillStyle=fpsS>45?'#4cd964':fpsS>25?'#f5c542':'#e8414b';cx.fillText(`${Math.round(fpsS)} FPS`,VW-66,VH-16);}
  if(state==='game'&&me&&alivePl(me)&&me.hp<8){const a=(1-me.hp/8)*(.55+Math.sin(gameTime*6)*.15),g=cx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.3,VW/2,VH/2,Math.max(VW,VH)*.7);g.addColorStop(0,'rgba(200,0,0,0)');g.addColorStop(1,`rgba(200,0,0,${a.toFixed(3)})`);cx.fillStyle=g;cx.fillRect(0,0,VW,VH);}
  if(hitMark>0&&state==='game'){const hx=aimLocked()?VW/2:mouse.x,hy=aimLocked()?VH/2:mouse.y,r=10;cx.strokeStyle=`rgba(255,255,255,${hitMark/.15})`;cx.lineWidth=2.5;cx.beginPath();cx.moveTo(hx-r,hy-r);cx.lineTo(hx-4,hy-4);cx.moveTo(hx+r,hy-r);cx.lineTo(hx+4,hy-4);cx.moveTo(hx-r,hy+r);cx.lineTo(hx-4,hy+4);cx.moveTo(hx+r,hy+r);cx.lineTo(hx+4,hy+4);cx.stroke();}
+ if(state==='game'&&combo>=3&&gameTime-comboT<1.4){const hx=aimLocked()?VW/2:mouse.x,hy=aimLocked()?VH/2:mouse.y,a=Math.min(1,(1.4-(gameTime-comboT))*2),sc=1+Math.max(0,.25-(gameTime-comboT))*1.6;cx.save();cx.globalAlpha=a;cx.translate(hx+34,hy-26);cx.scale(sc,sc);cx.textAlign='left';cx.font='900 18px sans-serif';cx.lineWidth=4;cx.strokeStyle='#000a';const t=`${combo} HIT COMBO`;cx.strokeText(t,0,0);cx.fillStyle=combo>=8?'#ff5ad1':combo>=5?'#ff8a3a':'#ffd84a';cx.fillText(t,0,0);cx.restore();}
  if(aimLocked()&&!(state==='game'&&shopOpen)){cx.strokeStyle='rgba(255,255,255,.85)';cx.lineWidth=2;cx.beginPath();cx.moveTo(VW/2-8,VH/2);cx.lineTo(VW/2+8,VH/2);cx.moveTo(VW/2,VH/2-8);cx.lineTo(VW/2,VH/2+8);cx.stroke();}
 }
 function fmtT(s){s=Math.max(0,s|0);return `${(s/60)|0}:${String(s%60).padStart(2,'0')}`;}
@@ -2173,7 +2184,7 @@ function toggleShiftLock(){shiftLock=!shiftLock;if(shiftLock){if(camMode===0)cam
 
 // ---------- loop & menu ----------
 let last=performance.now();
-function loop(now){const rdt=Math.max(1e-3,(now-last)/1000),dt=Math.min(.05,rdt);last=now;fpsS=fpsS*.95+.05/rdt;musicTick();if(state==='lobby')lobbyUpdate(dt);else{if(NET.mode==='client')clientUpdate(dt);else if(running){update(dt);lastSimAt=now;}if(NET.mode)netMatchTick(dt);netTick(dt);}if(KC&&state==='game')kcRender(dt,rdt);else render(dt);requestAnimationFrame(loop);}
+function loop(now){const rdt=Math.max(1e-3,(now-last)/1000),dt=Math.min(.05,rdt);last=now;fpsS=fpsS*.95+.05/rdt;musicTick();if(state==='lobby')lobbyUpdate(dt);else{if(NET.mode==='client')clientUpdate(dt);else if(running){update(SLOMO>0?dt*.3:dt);lastSimAt=now;}if(SLOMO>0)SLOMO-=rdt;if(NET.mode)netMatchTick(dt);netTick(dt);}if(KC&&state==='game')kcRender(dt,rdt);else render(dt);requestAnimationFrame(loop);}
 const mapsEl=document.getElementById('maps');
 mapsEl.innerHTML=`<button class="map" data-map="-1"><b>Random</b><small>surprise me</small></button>`+MAPS.map((m,i)=>`<button class="map" data-map="${i}"><b>${m.name}</b><small>${m.desc}</small></button>`).join('');
 function refreshMenu(){

@@ -198,6 +198,11 @@ table{border-collapse:collapse;margin:8px auto;font-size:14px}td,th{padding:4px 
 <div id="shop" class="ov hidden"><div class="panel" id="shopPanel"></div></div>
 <div id="acct" class="ov hidden"><div class="panel" style="max-width:560px">
 <h1 style="font-size:40px">BED WARS</h1><h2 id="acctTitle">Create your account</h2>
+<div id="acctMW" style="display:none;flex-direction:column;gap:8px;margin:6px 0 10px"><div style="opacity:.85;font-size:14px">Bed Wars uses <b style="color:#3ddc84">MagicWinter accounts</b> — one account for every MagicWinter Studio game. Your progress on this device moves into it.</div>
+<input id="mwU" maxlength="20" autocomplete="username" placeholder="MagicWinter username" style="font:inherit;padding:8px 10px;border-radius:8px;border:2px solid #3a4780;background:#0d1224;color:#fff">
+<input id="mwP" type="password" autocomplete="current-password" placeholder="Password" style="font:inherit;padding:8px 10px;border-radius:8px;border:2px solid #3a4780;background:#0d1224;color:#fff">
+<div class="row" style="margin:0"><button class="big" id="mwIn">Sign in with MagicWinter</button><button id="mwNew">New MagicWinter account</button></div></div>
+<div id="acctMWon" style="display:none;opacity:.8;font-size:13px;margin:0 0 8px">MagicWinter account: <b id="mwWho"></b> · <a href="#" id="mwOut" style="color:#8fd0ff">Sign out</a></div>
 <div class="row"><span class="lbl">Username</span><input id="acctName" maxlength="16" autocomplete="off" placeholder="3–16 letters, numbers or _" style="font:inherit;padding:8px 10px;border-radius:8px;border:2px solid #3a4780;background:#0d1224;color:#fff;flex:1"></div>
 <div class="row"><span class="lbl">Colour</span><span id="acctCols" class="row" style="margin:0"></span></div>
 <div id="acctStats"></div><div id="acctErr" style="color:#ff9ca0;min-height:20px"></div>
@@ -224,6 +229,7 @@ table{border-collapse:collapse;margin:8px auto;font-size:14px}td,th{padding:4px 
 const SB_URL='https://lakjmdyzuqrwcncxybcw.supabase.co',SB_KEY='sb_publishable__m0zTZ3-ThJVk0pktI65Ag_yDFPPD5s';
 let uid=null;try{uid=localStorage.getItem('bw_uid');}catch(e){}
 if(!uid){uid='u'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Math.random().toString(36).slice(2)+Date.now().toString(36)).slice(0,22);try{localStorage.setItem('bw_uid',uid);}catch(e){}}
+let MW=null;try{MW=JSON.parse(localStorage.getItem('bw_mw')||'null');if(MW&&!MW.uid)MW=null;}catch(e){}window.BW_MW=MW; // MagicWinter account → stable player id
 let sbP=null;
 function sb(){if(!sbP)sbP=import('https://esm.sh/@supabase/supabase-js@2.45.4').then(m=>m.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false},realtime:{params:{eventsPerSecond:40}}}));sbP.catch(()=>{setTimeout(()=>{sbP=null;},5000);});return sbP;}
 // ---- room: broadcast-based presence (each peer re-sends its state; peers expire after 6s)
@@ -254,7 +260,7 @@ const db={doc:docRef,collection:(col)=>Object.assign(query(col),{path:col,doc:(i
 // ---- assets: clips in storage bucket bw-clips
 const assets={upload:async(blob)=>{const c=await sb();const path=uid+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+(String(blob.type).includes('mp4')?'.mp4':'.webm');const {error}=await c.storage.from('bw-clips').upload(path,blob,{contentType:blob.type||'video/webm'});if(error)throw error;const {data}=c.storage.from('bw-clips').getPublicUrl(path);return {id:path,url:data.publicUrl,sizeBytes:blob.size,contentType:blob.type};},
  list:async()=>({assets:[],usage:{}}),delete:async(id)=>{const c=await sb();await c.storage.from('bw-clips').remove([id]);}};
-const user={id:async()=>uid,name:async()=>null,can:async()=>true,canEdit:async()=>false,isOwner:async()=>{let pw=null;try{pw=localStorage.getItem('bw_admin_pass');}catch(e){}if(!pw)return null;try{const c=await sb();const {data,error}=await c.rpc('bw_admin_check',{p_pass:pw});if(error)return null;return data===true;}catch(e){return null;}}};
+const user={id:async()=>MW?MW.uid:null,name:async()=>null,can:async()=>true,canEdit:async()=>false,isOwner:async()=>{let pw=null;try{pw=localStorage.getItem('bw_admin_pass');}catch(e){}if(!pw)return null;try{const c=await sb();const {data,error}=await c.rpc('bw_admin_check',{p_pass:pw});if(error)return null;return data===true;}catch(e){return null;}}};
 let lobbyRoom=null;
 window.claude={use:async n=>n==='room'?(lobbyRoom||(lobbyRoom=mkRoom('lobby'))):n==='db'?db:n==='user'?user:n==='assets'?assets:null};
 })();
@@ -2277,13 +2283,28 @@ chatIn.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){co
 chatIn.addEventListener('keyup',e=>e.stopPropagation());
 // account screen
 const acctEl=document.getElementById('acct');let acctCol=0;
-function openAccount(edit){acctCol=ACC.color|0;document.getElementById('acctName').value=ACC.name||'';document.getElementById('acctTitle').textContent=ACC.name?'Your account':'Create your account';
+function openAccount(edit){acctCol=ACC.color|0;
+ {const need=!!window.BW_STANDALONE&&!window.BW_MW;document.getElementById('acctMW').style.display=need?'flex':'none';document.getElementById('acctMWon').style.display=(window.BW_STANDALONE&&window.BW_MW)?'block':'none';if(window.BW_MW)document.getElementById('mwWho').textContent=window.BW_MW.name||window.BW_MW.mw;
+  for(const el of [document.getElementById('acctName').closest('.row'),document.getElementById('acctCols').closest('.row'),document.getElementById('acctSave')])if(el)el.style.display=need?'none':'';
+  if(need){document.getElementById('acctTitle').textContent='Sign in with MagicWinter';document.getElementById('acctClose').classList.add('hidden');document.getElementById('acctErr').textContent='';document.getElementById('acctStats').innerHTML='';acctEl.classList.remove('hidden');unlockPtr();setTimeout(()=>document.getElementById('mwU').focus(),50);return;}
+  if(!ACC.name&&window.BW_MW&&!document.getElementById('acctName').value)setTimeout(()=>{const i=document.getElementById('acctName');if(!i.value)i.value=String(window.BW_MW.name||'').replace(/[^A-Za-z0-9_]/g,'').slice(0,16);},0);}document.getElementById('acctName').value=ACC.name||'';document.getElementById('acctTitle').textContent=ACC.name?'Your account':'Create your account';
  document.getElementById('acctSave').textContent=ACC.name?'Save':'Create account';document.getElementById('acctClose').classList.toggle('hidden',!ACC.name);document.getElementById('acctErr').textContent='';
  const s=ACC.stats;document.getElementById('acctStats').innerHTML=ACC.name?`<table><tr><th>Level</th><th>Games</th><th>Wins</th><th>Kills</th><th>Finals</th><th>Beds</th><th>Deaths</th></tr><tr><td>${accLevel()}</td><td>${s.games}</td><td>${s.wins}</td><td>${s.kills}</td><td>${s.finals}</td><td>${s.beds}</td><td>${s.deaths}</td></tr></table>`:'';
  document.getElementById('acctNote').textContent=CLOUD.uid?'Saved to your Claude account, so it follows you to any device.':'Saved in this browser. Open the game on claude.ai while signed in to keep it across devices.';
  renderAcctCols();acctEl.classList.remove('hidden');unlockPtr();if(!edit)setTimeout(()=>document.getElementById('acctName').focus(),50);}
 function renderAcctCols(){document.getElementById('acctCols').innerHTML=TEAMDEF.map((t,i)=>`<button data-col="${i}" style="background:${t.color};width:34px;height:34px;padding:0;${i===acctCol?'outline:3px solid #fff':''}"></button>`).join('');}
+async function mwSign(up){const err=document.getElementById('acctErr'),u=document.getElementById('mwU').value.trim(),p=document.getElementById('mwP').value;if(!u||!p){err.textContent='Enter your MagicWinter username and password.';return;}
+ const bs=[document.getElementById('mwIn'),document.getElementById('mwNew')];bs.forEach(x=>x.disabled=true);err.textContent=up?'Creating…':'Signing in…';
+ const call=async(fn,body)=>{const r=await fetch('https://lakjmdyzuqrwcncxybcw.supabase.co/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:'sb_publishable__m0zTZ3-ThJVk0pktI65Ag_yDFPPD5s','Content-Type':'application/json'},body:JSON.stringify(body)});let j={};try{j=await r.json();}catch(e){}if(!r.ok&&!j.error)j.error=j.message||'The account server had a problem. Try again.';return j;};
+ try{const a=await call(up?'mw_signup':'mw_login',{p_username:u,p_password:p});if(!a.token)throw new Error(a.error||'Wrong username or password.');
+  const b=await call('bw_mw_uid',{p_mw_token:a.token});if(!b.uid)throw new Error(b.error||'Could not sign in. Try again.');
+  localStorage.setItem('bw_mw',JSON.stringify({uid:b.uid,name:b.name,mw:b.mw,token:a.token}));localStorage.setItem('mw.session',JSON.stringify({kind:'mw',user:a.username||u,token:a.token,until:Date.now()+30*864e5}));
+  err.textContent='Signed in! Loading your progress…';setTimeout(()=>location.reload(),400);}
+ catch(e){err.textContent=e.message==='Failed to fetch'?"Can't reach the account server — check your internet.":e.message;bs.forEach(x=>x.disabled=false);}}
+document.getElementById('mwOut').addEventListener('click',e=>{e.preventDefault();for(const k of ['bw_mw','mw.session','bw_account'])try{localStorage.removeItem(k);}catch(x){}location.reload();});
+acctEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.target.id==='mwU'||e.target.id==='mwP')){e.preventDefault();mwSign(false);}});
 acctEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ if(b.id==='mwIn'){mwSign(false);return;}if(b.id==='mwNew'){mwSign(true);return;}
  if(b.dataset.col!=null){acctCol=+b.dataset.col;renderAcctCols();}
  else if(b.id==='acctClose')acctEl.classList.add('hidden');
  else if(b.id==='acctSave'){const n=document.getElementById('acctName').value.trim();if(!/^[A-Za-z0-9_]{3,16}$/.test(n)){document.getElementById('acctErr').textContent='Use 3–16 letters, numbers or underscores.';return;}
@@ -2714,5 +2735,5 @@ lbEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||stat
  if(k==='av')toggleAvatar();else if(k==='kits')toggleKits();else if(k==='party')toggleParty();else if(k==='news')toggleNews();else if(k==='acct')openAccount();else openMeta(k);snd(660,.04,'triangle',.03);});
 lbEl.addEventListener('mousedown',e=>e.stopPropagation());
 setInterval(()=>{const v=state==='lobby'&&!loadingOn&&document.getElementById('acct').classList.contains('hidden');if(v!==lbShown){lbShown=v;lbEl.style.display=v?'flex':'none';}},200);
-applyHotbar();applyTouch();init3D();refreshMenu();enterLobby();checkAch(true);if(ACC.name)showBanner(`WELCOME BACK, ${ACC.name.toUpperCase()}!`,'Walk into a portal to queue · press P to make a party','#f2c230',4);else openAccount(false);initCloud();showLoading('LOADING','Building the islands…',null,1800,null);requestAnimationFrame(loop);
+applyHotbar();applyTouch();init3D();refreshMenu();enterLobby();checkAch(true);if(ACC.name&&!(window.BW_STANDALONE&&!window.BW_MW))showBanner(`WELCOME BACK, ${ACC.name.toUpperCase()}!`,'Walk into a portal to queue · press P to make a party','#f2c230',4);else openAccount(false);initCloud();showLoading('LOADING','Building the islands…',null,1800,null);requestAnimationFrame(loop);
 </script></body></html>
